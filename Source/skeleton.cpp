@@ -38,12 +38,31 @@ void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen );
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
+void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels);
 
-int main( int argc, char* argv[] )
-{
+
+int main( int argc, char* argv[] ){
 
   screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
   LoadTestModel(triangles);
+  
+  vector<ivec2> vertexPixels(3);
+  vertexPixels[0] = ivec2(10, 5);
+  vertexPixels[1] = ivec2(5, 10);
+  vertexPixels[2] = ivec2(15, 15);
+  vector<ivec2> leftPixels;
+  vector<ivec2> rightPixels;
+  ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
+  for (int row = 0; row<leftPixels.size(); ++row)
+  {
+	  cout << "Start: ("
+		  << leftPixels[row].x << ","
+		  << leftPixels[row].y << "). "
+		  << "End: ("
+		  << rightPixels[row].x << ","
+		  << rightPixels[row].y << "). " << endl;
+  }
+
   while ( Update())
     {
       Draw(screen);
@@ -69,6 +88,7 @@ void Draw(screen* screen)
     vertices[2] = triangles[i].v2;
 
     DrawPolygonEdges(vertices, screen);
+	//DrawPolygon(screen, vertices);
   }
 }
 
@@ -254,3 +274,68 @@ void Rotate(mat3 rotation) {
 	cameraRotMatrix[2][1] = cameraRotExtract[2][1];
 	cameraRotMatrix[2][2] = cameraRotExtract[2][2];*/
 }
+
+void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels){
+
+	// 1. Find max and min y-value of the polygon
+	// and compute the number of rows it occupies.
+
+	int maxYValue = vertexPixels[0].y;
+	if (maxYValue < vertexPixels[1].y) {
+		maxYValue = vertexPixels[1].y;
+	}
+	if (maxYValue < vertexPixels[2].y) {
+		maxYValue = vertexPixels[2].y;
+	}
+
+	int minYValue = vertexPixels[0].y;
+	if (minYValue > vertexPixels[1].y) {
+		minYValue = vertexPixels[1].y;
+	}
+	if (minYValue > vertexPixels[2].y) {
+		minYValue = vertexPixels[2].y;
+	}
+
+	int ROWS = maxYValue - minYValue + 1;
+
+	// 2. Resize leftPixels and rightPixels
+	// so that they have an element for each row.
+
+	leftPixels.resize(ROWS);
+	rightPixels.resize(ROWS);
+
+	// 3. Initialize the x-coordinates in leftPixels
+	// to some really large value and the x-coordinates
+	// in rightPixels to some really small value.
+
+	for (int i = 0; i<ROWS; ++i){
+		leftPixels[i].x = +numeric_limits<int>::max();
+		rightPixels[i].x = -numeric_limits<int>::max();
+	}
+
+	// 4. Loop through all edges of the polygon and use
+	// linear interpolation to find the x-coordinate for
+	// each row it occupies. Update the corresponding
+	// values in rightPixels and leftPixels.
+
+	for (int i = 0; i<vertexPixels.size(); ++i) {
+		int j = (i + 1) % vertexPixels.size(); // The next vertex
+		ivec2 delta = glm::abs(vertexPixels[i] - vertexPixels[j]);
+
+		int pixels = glm::max(delta.x, delta.y) + 1;
+		vector<ivec2> result(pixels);
+		Interpolate(vertexPixels[i], vertexPixels[j], result);
+		for (ivec2 pixel : result) {
+			int loc = pixel.y - minYValue;
+			if (pixel.x < leftPixels[loc].x) {
+				leftPixels[loc].x = pixel.x;
+				leftPixels[loc].y = pixel.y;
+			}
+			if (pixel.x > rightPixels[loc].x) {
+				rightPixels[loc].x = pixel.x;
+				rightPixels[loc].y = pixel.y;
+			}
+		}
+	}
+}
+
