@@ -21,6 +21,7 @@ SDL_Event event;
 
 float focalLength = SCREEN_HEIGHT;
 vec4 cameraPos( 0, 0, -3.001,1 );
+mat4 cameraRotMatrix;
 
 vector<Triangle> triangles;
 
@@ -34,7 +35,9 @@ void TransformationMatrix(mat4 Tranformation, vec3 angles, vec3 translation);
 void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result );
 void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color );
 void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen );
-
+void Rotate(mat3 rotation);
+mat3 RotMatrixX(float angle);
+mat3 RotMatrixY(float angle);
 
 int main( int argc, char* argv[] )
 {
@@ -65,56 +68,73 @@ void Draw(screen* screen)
     vertices[1] = triangles[i].v1;
     vertices[2] = triangles[i].v2;
 
-    // for(int v=0; v<3; ++v){
-    //   ivec2 projPos;
-    //   VertexShader( vertices[v], projPos );
-    //   vec3 color(1,1,1);
-    //   PutPixelSDL( screen, projPos.x, projPos.y, color );
-    // }
-
     DrawPolygonEdges(vertices, screen);
   }
 }
 
 /*Place updates of parameters here*/
-bool Update()
-{
-  static int t = SDL_GetTicks();
-  /* Compute frame time */
-  int t2 = SDL_GetTicks();
-  float dt = float(t2-t);
-  t = t2;
+bool Update(){
 
-  SDL_Event e;
-  while(SDL_PollEvent(&e))
-    {
-      if (e.type == SDL_QUIT)
-	{
-	  return false;
-	}
-      else
-	if (e.type == SDL_KEYDOWN)
-	  {
-	    int key_code = e.key.keysym.sym;
-	    switch(key_code)
-	      {
-	      case SDLK_UP:
-		/* Move camera forward */
-		break;
-	      case SDLK_DOWN:
-		/* Move camera backwards */
-		break;
-	      case SDLK_LEFT:
-		/* Move camera left */
-		break;
-	      case SDLK_RIGHT:
-		/* Move camera right */
-		break;
-	      case SDLK_ESCAPE:
-		/* Move camera quit */
-		return false;
-	      }
-	  }
+	static int t = SDL_GetTicks();
+	/* Compute frame time */
+	int t2 = SDL_GetTicks();
+	float dt = float(t2-t);
+	t = t2;
+
+	float angle = 0.01f;
+	float step = 0.2f;
+
+	SDL_Event e;
+	while(SDL_PollEvent(&e)){
+		if (e.type == SDL_QUIT){
+			return false;
+		}
+		else
+			if (e.type == SDL_KEYDOWN){
+				int key_code = e.key.keysym.sym;
+				switch(key_code){
+
+					//Camera Movement
+					case SDLK_UP:
+						/* Move camera forward */
+						cameraPos.z += step;
+						break;
+					case SDLK_DOWN:
+						/* Move camera backwards */
+						cameraPos.z -= step;
+						break;
+					case SDLK_LEFT:
+						/* Move camera left */
+						cameraPos.x -= step;
+						break;
+					case SDLK_RIGHT:
+						/* Move camera right */
+						cameraPos.x += step;
+						break;
+
+					//Camera Rotation
+					case SDLK_k:
+						/*Rotate camera downwards on X axis */
+						Rotate(RotMatrixX(-angle));
+						break;
+					case SDLK_i:
+						/*Rotate camera upwards on X axis */
+						Rotate(RotMatrixX(angle));
+						break;
+					case SDLK_l:
+						/*Rotate camera left on Y axis */
+						Rotate(RotMatrixY(angle));
+						break;
+					case SDLK_j:
+						/*Rotate camera right on Y axis */
+						Rotate(RotMatrixY(-angle));
+						break;
+
+					case SDLK_ESCAPE:
+						/* Move camera quit */
+						return false;
+				}
+			}
     }
   return true;
 }
@@ -122,7 +142,7 @@ bool Update()
 //Interpolate a 2d vector between two 2d points
 void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result ) {
   int N = result.size();
-  vec2 step = vec2(b-a) / float(max(N-1,1));
+  vec2 step = vec2(b-a) / float(fmax(N-1,1));
   vec2 current( a );
   for( int i=0; i<N; ++i ) {
     result[i] = current;
@@ -132,12 +152,17 @@ void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result ) {
 
 //Draw a line between 2 points on the screen
 void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color ) {
+
+  //If a and b are the start and end of the line segment then compute the number of pixels to draw
   //Find the absolute difference
   ivec2 delta = glm::abs( a - b );
   int pixels = glm::max( delta.x, delta.y ) + 1;
+
+  //Get the pixel positions of the line by calling the Interpolation function
   //Create a vector of vectors
   vector<ivec2> line( pixels );
   Interpolate( a, b, line );
+
   for( uint32_t i=0; i<line.size(); ++i ) {
     PutPixelSDL( screen, line[i].x, line[i].y, color );
   }
@@ -145,16 +170,15 @@ void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color ) {
 
 //Draw the edges of each polygon in the scene
 void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen ) {
+
   int V = vertices.size();
   // Transform each vertex from 3D world position to 2D image position:
   vector<ivec2> projectedVertices( V );
-  for( int i=0; i<V; ++i )
-  {
+  for( int i=0; i<V; ++i ) {
     VertexShader( vertices[i], projectedVertices[i] );
   }
   // Loop over all vertices and draw the edge from it to the next vertex:
-  for( int i=0; i<V; ++i )
-  {
+  for( int i=0; i<V; ++i ) {
     int j = (i+1)%V; // The next vertex
     vec3 color( 1, 1, 1 );
     DrawLineSDL( screen, projectedVertices[i], projectedVertices[j], color );
@@ -192,4 +216,41 @@ void TransformationMatrix(mat4 Transformation, vec3 angles, vec3 translation){
   Negative[2][3] = -translation[2];
 
   Transformation = Positive * Rotation * Negative;
+}
+
+mat3 RotMatrixX(float angle) {
+	vec3 x0(1, 0, 0);
+	vec3 x1(0, cosf(angle), sinf(angle));
+	vec3 x2(0, -sinf(angle), cosf(angle));
+
+	return mat3(x0, x1, x2);
+}
+
+mat3 RotMatrixY(float angle) {
+	vec3 y1(cosf(angle), 0, -sinf(angle));
+	vec3 y2(0, 1, 0);
+	vec3 y3(sinf(angle), 0, cosf(angle));
+
+	return mat3(y1, y2, y3);
+}
+
+void Rotate(mat3 rotation) {
+	vec3 loc = cameraPos * rotation;
+	cameraPos = vec4(loc, 1);
+
+	/*mat3 cameraRotExtract(cameraRotMatrix[0][0], cameraRotMatrix[0][1], cameraRotMatrix[0][2],
+		cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
+		cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
+
+	cameraRotExtract = rotation * cameraRotExtract;
+
+	cameraRotMatrix[0][0] = cameraRotExtract[0][0];
+	cameraRotMatrix[0][1] = cameraRotExtract[0][1];
+	cameraRotMatrix[0][2] = cameraRotExtract[0][2];
+	cameraRotMatrix[1][0] = cameraRotExtract[1][0];
+	cameraRotMatrix[1][1] = cameraRotExtract[1][1];
+	cameraRotMatrix[1][2] = cameraRotExtract[1][2];
+	cameraRotMatrix[2][0] = cameraRotExtract[2][0];
+	cameraRotMatrix[2][1] = cameraRotExtract[2][1];
+	cameraRotMatrix[2][2] = cameraRotExtract[2][2];*/
 }
