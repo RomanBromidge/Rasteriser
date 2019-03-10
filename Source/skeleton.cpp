@@ -25,6 +25,8 @@ mat4 cameraRotMatrix;
 
 vector<Triangle> triangles;
 
+vec3 currentColor;
+
 /* ----------------------------------------------------------------------------*/
 /* FUNCTIONS                                                                   */
 
@@ -40,28 +42,30 @@ mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
 void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels);
 
+void DrawRows(screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels);
+void DrawPolygon(const vector<vec4>& vertices, screen* screen);
+
 
 int main( int argc, char* argv[] ){
 
   screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
   LoadTestModel(triangles);
   
-  vector<ivec2> vertexPixels(3);
+ /* vector<ivec2> vertexPixels(3);
   vertexPixels[0] = ivec2(10, 5);
   vertexPixels[1] = ivec2(5, 10);
   vertexPixels[2] = ivec2(15, 15);
   vector<ivec2> leftPixels;
   vector<ivec2> rightPixels;
   ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
-  for (int row = 0; row<leftPixels.size(); ++row)
-  {
+  for (int row = 0; row<leftPixels.size(); ++row) {
 	  cout << "Start: ("
 		  << leftPixels[row].x << ","
 		  << leftPixels[row].y << "). "
 		  << "End: ("
 		  << rightPixels[row].x << ","
 		  << rightPixels[row].y << "). " << endl;
-  }
+  }*/
 
   while ( Update())
     {
@@ -87,8 +91,10 @@ void Draw(screen* screen)
     vertices[1] = triangles[i].v1;
     vertices[2] = triangles[i].v2;
 
-    DrawPolygonEdges(vertices, screen);
-	//DrawPolygon(screen, vertices);
+	currentColor = triangles[i].color;
+
+    //DrawPolygonEdges(vertices, screen);
+	DrawPolygon(vertices, screen);
   }
 }
 
@@ -165,7 +171,7 @@ void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result ) {
   vec2 step = vec2(b-a) / float(fmax(N-1,1));
   vec2 current( a );
   for( int i=0; i<N; ++i ) {
-    result[i] = current;
+    result[i] = round(current);
     current += step;
   }
 }
@@ -257,22 +263,6 @@ mat3 RotMatrixY(float angle) {
 void Rotate(mat3 rotation) {
 	vec3 loc = cameraPos * rotation;
 	cameraPos = vec4(loc, 1);
-
-	/*mat3 cameraRotExtract(cameraRotMatrix[0][0], cameraRotMatrix[0][1], cameraRotMatrix[0][2],
-		cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
-		cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
-
-	cameraRotExtract = rotation * cameraRotExtract;
-
-	cameraRotMatrix[0][0] = cameraRotExtract[0][0];
-	cameraRotMatrix[0][1] = cameraRotExtract[0][1];
-	cameraRotMatrix[0][2] = cameraRotExtract[0][2];
-	cameraRotMatrix[1][0] = cameraRotExtract[1][0];
-	cameraRotMatrix[1][1] = cameraRotExtract[1][1];
-	cameraRotMatrix[1][2] = cameraRotExtract[1][2];
-	cameraRotMatrix[2][0] = cameraRotExtract[2][0];
-	cameraRotMatrix[2][1] = cameraRotExtract[2][1];
-	cameraRotMatrix[2][2] = cameraRotExtract[2][2];*/
 }
 
 void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels){
@@ -339,3 +329,25 @@ void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPi
 	}
 }
 
+void DrawRows(screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels) {
+	int length = leftPixels.size();
+	//Call PutPixelSDL for each pixel between the start and end for each row
+	for (int i = 0; i <= length; i++) {
+		for (int j = leftPixels[i].x; j <= rightPixels[i].x; j++) {
+			PutPixelSDL(screen, j, leftPixels[i].y, currentColor);
+		}
+	}
+}
+
+void DrawPolygon(const vector<vec4>& vertices, screen* screen) {
+	int V = vertices.size();
+
+	vector<ivec2> vertexPixels(V);
+	for (int i = 0; i < V; ++i) {
+		VertexShader(vertices[i], vertexPixels[i]);
+	}
+	vector<ivec2> leftPixels;
+	vector<ivec2> rightPixels;
+	ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
+	DrawRows(screen, leftPixels, rightPixels);
+}
