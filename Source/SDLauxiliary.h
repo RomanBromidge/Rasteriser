@@ -15,6 +15,12 @@ typedef struct{
   uint32_t *buffer;
 } screen;
 
+struct Pixel {
+	int x;
+	int y;
+	float zinv;
+};
+
 screen* InitializeSDL( int width, int height, bool fullscreen = false );
 void PutPixelSDL( screen *s, int x, int y, glm::vec3 color );
 void SDL_Renderframe(screen *s);
