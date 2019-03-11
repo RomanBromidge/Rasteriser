@@ -19,9 +19,6 @@ SDL_Event event;
 #define SCREEN_HEIGHT 256
 #define FULLSCREEN_MODE false
 
-//Storing the inverse depth 1/z for each pixel
-float depthBuffer[SCREEN_HEIGHT][SCREEN_WIDTH];
-
 float focalLength = SCREEN_HEIGHT;
 vec4 cameraPos( 0, 0, -3.001,1 );
 mat4 cameraRotMatrix;
@@ -37,9 +34,9 @@ bool Update();
 void Draw(screen* screen);
 //void VertexShader( const vec4& v, ivec2& p );
 void VertexShader(const vec4& v, Pixel& p);
-void TransformationMatrix(mat4 Tranformation, vec3 angles, vec3 translation);
+//void TransformationMatrix(mat4 Tranformation, vec3 angles, vec3 translation);
 //void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result );
-void InterpolatePixel(Pixel a, Pixel b, vector<Pixel>& result);
+void Interpolate(Pixel a, Pixel b, vector<Pixel>& result);
 //void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color );
 //void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen );
 void Rotate(mat3 rotation);
@@ -51,11 +48,38 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
 void DrawPolygon(const vector<vec4>& vertices, screen* screen);
 
+float **malloc2dArray(float dim1, float dim2)
+{
+	float i, j;
+
+	float **array = (float **)malloc(dim1 * sizeof(float *));
+
+	for (int i = 0; i < dim1; i++) {
+
+		array[i] = (float *)malloc(dim2 * sizeof(float));
+		for (int j = 0; j < dim2; j++) {
+			array[i][j] = 0;
+		}
+
+	}
+	return array;
+
+}
+
+//Storing the inverse depth 1/z for each pixel
+float **depthBuffer;
 
 int main( int argc, char* argv[] ){
 
   screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
   LoadTestModel(triangles);
+
+  depthBuffer = malloc2dArray(SCREEN_WIDTH, SCREEN_HEIGHT);
+  /*for (int i=0; i < SCREEN_HEIGHT; i++) {
+	  for (int j = 0; j < SCREEN_WIDTH; j++) {
+		  depthBuffer[i][j] = 0;
+	  }
+  }*/
   
  /* vector<ivec2> vertexPixels(3);
   vertexPixels[0] = ivec2(10, 5);
@@ -92,9 +116,10 @@ void Draw(screen* screen)
   memset(screen->buffer, 0, screen->height*screen->width*sizeof(uint32_t));
 
   /* Clear depth buffer */
-  for (int y = 0; y < SCREEN_HEIGHT; ++y) {
-	  for (int x = 0; x < SCREEN_WIDTH; ++x) {
-		  depthBuffer[y][x] = 0;
+  //memset(depthBuffer, 0, sizeof(uint32_t)*SCREEN_WIDTH*SCREEN_HEIGHT);
+  for (int i = 0; i < SCREEN_WIDTH; i++) {
+	  for (int j = 0; j < SCREEN_HEIGHT; j++) {
+		  depthBuffer[i][j] = 0;
 	  }
   }
 
@@ -189,16 +214,23 @@ bool Update(){
 //  }
 //}
 
-void InterpolatePixel(Pixel a, Pixel b, vector<Pixel>& result) {
+void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	int N = result.size();
 
 	Pixel step;
-	step.x = (b.x - a.x) / (float)(fmax(N - 1, 1));
-	step.y = (b.y - a.y) / (float)(fmax(N - 1, 1));
+	float stepX = (b.x - a.x) / (float)(fmax(N - 1, 1));
+	float stepY = (b.y - a.y) / (float)(fmax(N - 1, 1));
+
+	float d = sqrt((a.x-b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
+
+	float m = sqrt((stepX * stepX) + (stepY * stepY));
+	float lamdaStep = m / d;
 
 	for (int i = 0; i < N; ++i) {
-		result[i].x = a.x + i * step.x;
-		result[i].y = a.y + i * step.y;
+		result[i].x = round(a.x + i * stepX);
+		result[i].y = round(a.y + i * stepY);
+		float lamda = i * lamdaStep;
+		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
 	}
 }
 
@@ -255,30 +287,30 @@ void VertexShader(const vec4& v, Pixel& p) {
 }
 
 //Transform the geometry depending on some translation and rotation vector
-void TransformationMatrix(mat4 Transformation, vec3 angles, vec3 translation){
-  float a = angles[0];
-  float b = angles[1];
-  float c = angles[2];
-
-  vec4 row1(cosf(b) * cosf(c), cosf(b)* sinf(c), -sinf(b), 0);
-  vec4 row2((sinf(a) * sinf(b)* cosf(c)) - (cosf(a) * sinf(c)), (sinf(a) * sinf(b) * sinf(c)) + (cosf(a) * cosf(c)), sinf(a) * cosf(b), 0);
-  vec4 row3((cosf(a) * sinf(b)* cosf(c)) + (sinf(a) * sinf(c)), (cosf(a) * sinf(b) * sinf(c)) - (sinf(a) * cosf(c)), cosf(a) * cosf(b), 0);
-  vec4 row4(0,0,0,1);
-
-  mat4 Rotation(row1, row2, row3, row4);
-
-  vec4 zeros(0,0,0,0);
-  mat4 Positive(zeros, zeros, zeros, row4);
-  Positive[0][3] = translation[0];
-  Positive[1][3] = translation[1];
-  Positive[2][3] = translation[2];
-  mat4 Negative(zeros, zeros, zeros, row4);
-  Negative[0][3] = -translation[0];
-  Negative[1][3] = -translation[1];
-  Negative[2][3] = -translation[2];
-
-  Transformation = Positive * Rotation * Negative;
-}
+//void TransformationMatrix(mat4 Transformation, vec3 angles, vec3 translation){
+//  float a = angles[0];
+//  float b = angles[1];
+//  float c = angles[2];
+//
+//  vec4 row1(cosf(b) * cosf(c), cosf(b)* sinf(c), -sinf(b), 0);
+//  vec4 row2((sinf(a) * sinf(b)* cosf(c)) - (cosf(a) * sinf(c)), (sinf(a) * sinf(b) * sinf(c)) + (cosf(a) * cosf(c)), sinf(a) * cosf(b), 0);
+//  vec4 row3((cosf(a) * sinf(b)* cosf(c)) + (sinf(a) * sinf(c)), (cosf(a) * sinf(b) * sinf(c)) - (sinf(a) * cosf(c)), cosf(a) * cosf(b), 0);
+//  vec4 row4(0,0,0,1);
+//
+//  mat4 Rotation(row1, row2, row3, row4);
+//
+//  vec4 zeros(0,0,0,0);
+//  mat4 Positive(zeros, zeros, zeros, row4);
+//  Positive[0][3] = translation[0];
+//  Positive[1][3] = translation[1];
+//  Positive[2][3] = translation[2];
+//  mat4 Negative(zeros, zeros, zeros, row4);
+//  Negative[0][3] = -translation[0];
+//  Negative[1][3] = -translation[1];
+//  Negative[2][3] = -translation[2];
+//
+//  Transformation = Positive * Rotation * Negative;
+//}
 
 mat3 RotMatrixX(float angle) {
 	vec3 x0(1, 0, 0);
@@ -367,7 +399,6 @@ void Rotate(mat3 rotation) {
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels) {
 	// 1. Find max and min y-value of the polygon
 	// and compute the number of rows it occupies.
-
 	int maxYValue = vertexPixels[0].y;
 	if (maxYValue < vertexPixels[1].y) {
 		maxYValue = vertexPixels[1].y;
@@ -388,14 +419,12 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 
 	// 2. Resize leftPixels and rightPixels
 	// so that they have an element for each row.
-
 	leftPixels.resize(ROWS);
 	rightPixels.resize(ROWS);
 
 	// 3. Initialize the x-coordinates in leftPixels
 	// to some really large value and the x-coordinates
 	// in rightPixels to some really small value.
-
 	for (int i = 0; i<ROWS; ++i) {
 		leftPixels[i].x = +numeric_limits<int>::max();
 		rightPixels[i].x = -numeric_limits<int>::max();
@@ -405,7 +434,6 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 	// linear interpolation to find the x-coordinate for
 	// each row it occupies. Update the corresponding
 	// values in rightPixels and leftPixels.
-
 	for (int i = 0; i<vertexPixels.size(); ++i) {
 		int j = (i + 1) % vertexPixels.size(); // The next vertex
 
@@ -416,16 +444,18 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 		int pixels = glm::max(delta.x, delta.y) + 1;
 
 		vector<Pixel> result(pixels);
-		InterpolatePixel(vertexPixels[i], vertexPixels[j], result);
+		Interpolate(vertexPixels[i], vertexPixels[j], result);
 		for (Pixel pixel : result) {
 			int loc = pixel.y - minYValue;
 			if (pixel.x < leftPixels[loc].x) {
 				leftPixels[loc].x = pixel.x;
 				leftPixels[loc].y = pixel.y;
+				leftPixels[loc].zinv = pixel.zinv;
 			}
 			if (pixel.x > rightPixels[loc].x) {
 				rightPixels[loc].x = pixel.x;
 				rightPixels[loc].y = pixel.y;
+				rightPixels[loc].zinv = pixel.zinv;
 			}
 		}
 	}
@@ -444,13 +474,28 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels) {
 	int length = leftPixels.size();
 	//Call PutPixelSDL for each pixel between the start and end for each row
-	for (int i = 0; i <= length; i++) {
-		for (int j = leftPixels[i].x; j <= rightPixels[i].x; j++) {
-			//Before drawing a new pixel check if it is in front of the one that is currently drawn there by comparing the value of the depthBuffer at that pixel
-			
-			if (p.zinv > depthBuffer[i][j]) {
-				depthBuffer[i][j] = p.zinv;
-				PutPixelSDL(screen, j, leftPixels[i].y, currentColor);
+	for (int i = 0; i < length; ++i) {
+
+		ivec2 delta;
+		delta.x = glm::abs(leftPixels[i].x - rightPixels[i].x);
+		delta.y = glm::abs(leftPixels[i].y - rightPixels[i].y);
+		int pixels = glm::max(delta.x, delta.y) +1;
+
+		//int pixels = glm::abs(leftPixels[i].x - rightPixels[i].x);
+
+		vector<Pixel> results(pixels);
+
+		Interpolate(leftPixels[i], rightPixels[i], results);
+
+		for (Pixel pixel : results) {
+			//Check if pixel.x and pixel.y are in the screen
+			if (pixel.x < SCREEN_WIDTH && pixel.x >= 0 && pixel.y < SCREEN_HEIGHT && pixel.y >= 0) {
+				//Before drawing a new pixel check if it is in front of the one that is currently drawn there by comparing the value of the depthBuffer at that pixel
+				if (pixel.zinv > depthBuffer[pixel.x][pixel.y]) {
+					depthBuffer[pixel.x][pixel.y] = pixel.zinv;
+					PutPixelSDL(screen, pixel.x, pixel.y, currentColor);
+				}
+				//PutPixelSDL(screen, pixel.x, pixel.y, currentColor);
 			}
 		}
 	}
