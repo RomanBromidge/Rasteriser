@@ -39,7 +39,7 @@ mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels);
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
-void DrawPolygon(const vector<vec4>& vertices, screen* screen);
+void DrawPolygon(const vector<Vertex>& vertices, screen* screen);
 
 float **malloc2dArray(float dim1, float dim2)
 {
@@ -117,10 +117,10 @@ void Draw(screen* screen)
   }
 
   for( uint32_t i=0; i<triangles.size(); ++i ) {
-    vector<vec4> vertices(3);
-    vertices[0] = triangles[i].v0;
-    vertices[1] = triangles[i].v1;
-    vertices[2] = triangles[i].v2;
+    vector<Vertex> vertices(3);
+    vertices[0].position = triangles[i].v0;
+    vertices[1].position = triangles[i].v1;
+    vertices[2].position = triangles[i].v2;
 
 		currentColor = triangles[i].color;
 
@@ -252,8 +252,9 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 //  }
 //}
 
-void VertexShader(const vec4& v, Pixel& p) {
-	vec4 n = v - cameraPos;
+void VertexShader(const Vertex& v, Pixel& p) {
+	vec4 pos = v.position;
+	vec4 n = pos - cameraPos;
 
 	//Calculate z inverse before anything else:
 	p.zinv = 1 / n.z;
@@ -409,7 +410,7 @@ void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixe
 	}
 }
 
-void DrawPolygon(const vector<vec4>& vertices, screen* screen) {
+void DrawPolygon(const vector<Vertex>& vertices, screen* screen) {
 	int V = vertices.size();
 
 	vector<Pixel> vertexPixels(V);

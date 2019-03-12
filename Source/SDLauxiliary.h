@@ -6,7 +6,9 @@
 #include <glm/glm.hpp>
 #include <stdint.h>
 
-typedef struct{
+using glm::vec4;
+
+typedef struct {
   SDL_Window *window;
   SDL_Renderer *renderer;
   SDL_Texture *texture;
@@ -19,6 +21,10 @@ struct Pixel {
 	int x;
 	int y;
 	float zinv;
+};
+
+struct Vertex {
+  vec4 position;
 };
 
 screen* InitializeSDL( int width, int height, bool fullscreen = false );
@@ -55,7 +61,7 @@ void SDL_SaveImage(screen *s, const char* filename)
 		<< SDL_GetError() << std::endl;
       exit(1);
     }
-  
+
 }
 
 void KillSDL(screen* s)
@@ -103,13 +109,13 @@ screen* InitializeSDL(int width,int height, bool fullscreen)
 		<< SDL_GetError() << std::endl;
       exit(1);
     }
-  
+
   screen *s = new screen;
   s->width = width;
   s->height = height;
   s->buffer = new uint32_t[width*height];
   memset(s->buffer, 0, width*height*sizeof(uint32_t));
-  
+
   uint32_t flags = SDL_WINDOW_OPENGL;
   if(fullscreen)
     {
@@ -147,7 +153,7 @@ screen* InitializeSDL(int width,int height, bool fullscreen)
 	     << SDL_GetError() << std::endl;
       exit(1);
     }
-  
+
   return s;
 }
 
