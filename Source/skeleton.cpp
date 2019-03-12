@@ -26,7 +26,7 @@ mat4 cameraRotMatrix;
 
 //Light variables
 vec4 lightPos(0,-0.5,-0.7, 1);
-vec3 lightPower = 14.1f*vec3( 1, 1, 1 );
+vec3 lightPower = 1.1f*vec3( 1, 1, 1 );
 vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
 
 vector<Triangle> triangles;
@@ -37,7 +37,7 @@ vec3 currentColor;
 
 bool Update();
 void Draw(screen* screen);
-void VertexShader(const vec4& v, Pixel& p);
+void VertexShader(const Vertex& v, Pixel& p);
 void PixelShader( screen* screen, const Pixel& p );
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result);
 void Rotate(mat3 rotation);
@@ -125,26 +125,26 @@ void Draw(screen* screen)
   }
 
   for( uint32_t i=0; i<triangles.size(); ++i ) {
-    vector<Vertex> vertices(3);
-		vec3 norm3 = triangles[i].normal;
-		vec4 norm = vec4(norm3, 1);
-		vec3 refl = vec3(1, 1, 1);
-    vertices[0].position = triangles[i].v0;
-		vertices[0].normal = norm;
-		vertices[0].reflectance = refl;
+	vector<Vertex> vertices(3);
+	vec3 norm3 = triangles[i].normal;
+	vec4 norm = vec4(norm3, 1);
+	vec3 refl = triangles[i].color;
+	vertices[0].position = triangles[i].v0;
+	vertices[0].normal = norm;
+	vertices[0].reflectance = refl;
 
-    vertices[1].position = triangles[i].v1;
-		vertices[1].normal = norm;
-		vertices[1].reflectance = refl;
+	vertices[1].position = triangles[i].v1;
+	vertices[1].normal = norm;
+	vertices[1].reflectance = refl;
 
-    vertices[2].position = triangles[i].v2;
-		vertices[2].normal = norm;
-		vertices[2].reflectance = refl;
+	vertices[2].position = triangles[i].v2;
+	vertices[2].normal = norm;
+	vertices[2].reflectance = refl;
 
-		currentColor = triangles[i].color;
+	currentColor = triangles[i].color;
 
-    //DrawPolygonEdges(vertices, screen);
-		DrawPolygon(vertices, screen);
+	//DrawPolygonEdges(vertices, screen);
+	DrawPolygon(vertices, screen);
   }
 }
 
@@ -227,18 +227,25 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 
 	float m = sqrt((stepX * stepX) + (stepY * stepY));
 	float lamdaStep = m / d;
+
 	vec3 aLum = a.illumination;
 	vec3 bLum = b.illumination;
 	vec3 illumination;
+
+	float stepXill = (aLum.x - bLum.x)/ (float)(fmax(N - 1, 1));
+	float stepYill = (aLum.y - bLum.y) / (float)(fmax(N - 1, 1));
+	float stepZill = (aLum.z - bLum.z) / (float)(fmax(N - 1, 1));
+
 
 	for (int i = 0; i < N; ++i) {
 		result[i].x = round(a.x + i * stepX);
 		result[i].y = round(a.y + i * stepY);
 		float lamda = i * lamdaStep;
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
-		illumination.x = (aLum.x*(1-lamda) + bLum.x*(lamda));
-		illumination.y = (aLum.y*(1-lamda) + bLum.y*(lamda));;
-		illumination.z = (aLum.z*(1-lamda) + bLum.z*(lamda));;
+
+		illumination.x = (a.x + i * stepXill);
+		illumination.y = (a.y + i * stepYill);
+		illumination.z = (a.y + i * stepZill);
 		result[i].illumination = illumination;
 	}
 }
@@ -282,7 +289,7 @@ void VertexShader(const Vertex& v, Pixel& p) {
 	vec4 pos = v.position;
 	vec4 n = pos - cameraPos;
 
-	//Calculate z inverse before anything else:
+	//Calculate z inverse before anything else
 	p.zinv = 1 / n.z;
 	//Compute projected position
 	p.x = (int)((focalLength * (n.x / n.z)) + (SCREEN_WIDTH * 0.5));
@@ -290,9 +297,9 @@ void VertexShader(const Vertex& v, Pixel& p) {
 
 	//Compute illumination of vertex
 	vec4 norm = v.normal;
-	vec4 r = lightPos - v.position;
-	//norm = NormaliseVec(n);
-	//r = NormaliseVec(r);
+	vec4 r = v.position - lightPos;
+	norm = NormaliseVec(n);
+	r = NormaliseVec(r);
 	double d = Find3Distance(lightPos, vec3(pos));
 	double dotProduct = (norm.x * r.x) + (norm.y * r.y) + (norm.z * r.z);
 	vec3 D (0,0,0);
@@ -300,8 +307,12 @@ void VertexShader(const Vertex& v, Pixel& p) {
 		D.x = dotProduct * lightPower.x / (4 * M_PI * d * d);
 		D.y = dotProduct * lightPower.y / (4 * M_PI * d * d);
 		D.z = dotProduct * lightPower.z / (4 * M_PI * d * d);
+		cout << "positive" << 1 << endl;
 	}
-	p.illumination = v.reflectance * (D + indirectLightPowerPerArea);
+	else {
+		cout << "negative" << endl;
+	}
+	p.illumination = (D + indirectLightPowerPerArea);
 
 }
 
@@ -310,7 +321,7 @@ void PixelShader( screen* screen, const Pixel& p ) {
 	int y = p.y;
 	if( p.zinv > depthBuffer[x][y] ) {
 		depthBuffer[x][y] = p.zinv;
-		PutPixelSDL( screen, x, y, currentColor*p.illumination );
+		PutPixelSDL( screen, x, y, p.illumination );
 	}
 }
 
@@ -416,11 +427,13 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 				leftPixels[loc].x = pixel.x;
 				leftPixels[loc].y = pixel.y;
 				leftPixels[loc].zinv = pixel.zinv;
+				leftPixels[loc].illumination = pixel.illumination;
 			}
 			if (pixel.x > rightPixels[loc].x) {
 				rightPixels[loc].x = pixel.x;
 				rightPixels[loc].y = pixel.y;
 				rightPixels[loc].zinv = pixel.zinv;
+				rightPixels[loc].illumination = pixel.illumination;
 			}
 		}
 	}
