@@ -32,19 +32,12 @@ vec3 currentColor;
 
 bool Update();
 void Draw(screen* screen);
-//void VertexShader( const vec4& v, ivec2& p );
 void VertexShader(const vec4& v, Pixel& p);
-//void TransformationMatrix(mat4 Tranformation, vec3 angles, vec3 translation);
-//void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result );
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result);
-//void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color );
-//void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen );
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
-//void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels);
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels);
-//void DrawRows(screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels);
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
 void DrawPolygon(const vector<vec4>& vertices, screen* screen);
 
@@ -80,7 +73,7 @@ int main( int argc, char* argv[] ){
 		  depthBuffer[i][j] = 0;
 	  }
   }*/
-  
+
  /* vector<ivec2> vertexPixels(3);
   vertexPixels[0] = ivec2(10, 5);
   vertexPixels[1] = ivec2(5, 10);
@@ -204,16 +197,6 @@ bool Update(){
 }
 
 //Interpolate a 2d vector between two 2d points
-//void Interpolate( ivec2 a, ivec2 b, vector<ivec2>& result ) {
-//  int N = result.size();
-//  vec2 step = vec2(b-a) / float(fmax(N-1,1));
-//  vec2 current( a );
-//  for( int i=0; i<N; ++i ) {
-//    result[i] = round(current);
-//    current += step;
-//  }
-//}
-
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	int N = result.size();
 
@@ -267,13 +250,6 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 //    vec3 color( 1, 1, 1 );
 //    DrawLineSDL( screen, projectedVertices[i], projectedVertices[j], color );
 //  }
-//}
-
-//Determine the position of the projected vertices
-//void VertexShader( const vec4& v, ivec2& p ){
-//  vec4 n = v - cameraPos;
-//  p.x = (int)((focalLength * (n.x/n.z)) + (SCREEN_WIDTH * 0.5));
-//  p.y = (int)((focalLength * (n.y/n.z)) + (SCREEN_HEIGHT * 0.5));
 //}
 
 void VertexShader(const vec4& v, Pixel& p) {
@@ -332,69 +308,6 @@ void Rotate(mat3 rotation) {
 	vec3 loc = cameraPos * rotation;
 	cameraPos = vec4(loc, 1);
 }
-
-//void ComputePolygonRows(const vector<ivec2>& vertexPixels, vector<ivec2>& leftPixels, vector<ivec2>& rightPixels){
-//	// 1. Find max and min y-value of the polygon
-//	// and compute the number of rows it occupies.
-//
-//	int maxYValue = vertexPixels[0].y;
-//	if (maxYValue < vertexPixels[1].y) {
-//		maxYValue = vertexPixels[1].y;
-//	}
-//	if (maxYValue < vertexPixels[2].y) {
-//		maxYValue = vertexPixels[2].y;
-//	}
-//
-//	int minYValue = vertexPixels[0].y;
-//	if (minYValue > vertexPixels[1].y) {
-//		minYValue = vertexPixels[1].y;
-//	}
-//	if (minYValue > vertexPixels[2].y) {
-//		minYValue = vertexPixels[2].y;
-//	}
-//
-//	int ROWS = maxYValue - minYValue + 1;
-//
-//	// 2. Resize leftPixels and rightPixels
-//	// so that they have an element for each row.
-//
-//	leftPixels.resize(ROWS);
-//	rightPixels.resize(ROWS);
-//
-//	// 3. Initialize the x-coordinates in leftPixels
-//	// to some really large value and the x-coordinates
-//	// in rightPixels to some really small value.
-//
-//	for (int i = 0; i<ROWS; ++i){
-//		leftPixels[i].x = +numeric_limits<int>::max();
-//		rightPixels[i].x = -numeric_limits<int>::max();
-//	}
-//
-//	// 4. Loop through all edges of the polygon and use
-//	// linear interpolation to find the x-coordinate for
-//	// each row it occupies. Update the corresponding
-//	// values in rightPixels and leftPixels.
-//
-//	for (int i = 0; i<vertexPixels.size(); ++i) {
-//		int j = (i + 1) % vertexPixels.size(); // The next vertex
-//		ivec2 delta = glm::abs(vertexPixels[i] - vertexPixels[j]);
-//
-//		int pixels = glm::max(delta.x, delta.y) + 1;
-//		vector<ivec2> result(pixels);
-//		Interpolate(vertexPixels[i], vertexPixels[j], result);
-//		for (ivec2 pixel : result) {
-//			int loc = pixel.y - minYValue;
-//			if (pixel.x < leftPixels[loc].x) {
-//				leftPixels[loc].x = pixel.x;
-//				leftPixels[loc].y = pixel.y;
-//			}
-//			if (pixel.x > rightPixels[loc].x) {
-//				rightPixels[loc].x = pixel.x;
-//				rightPixels[loc].y = pixel.y;
-//			}
-//		}
-//	}
-//}
 
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels) {
 	// 1. Find max and min y-value of the polygon
@@ -461,16 +374,6 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 	}
 }
 
-//void DrawRows(screen* screen, const vector<ivec2>& leftPixels, const vector<ivec2>& rightPixels) {
-//	int length = leftPixels.size();
-//	//Call PutPixelSDL for each pixel between the start and end for each row
-//	for (int i = 0; i <= length; i++) {
-//		for (int j = leftPixels[i].x; j <= rightPixels[i].x; j++) {
-//			PutPixelSDL(screen, j, leftPixels[i].y, currentColor);
-//		}
-//	}
-//}
-
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels) {
 	int length = leftPixels.size();
 	//Call PutPixelSDL for each pixel between the start and end for each row
@@ -500,19 +403,6 @@ void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixe
 		}
 	}
 }
-
-//void DrawPolygon(const vector<vec4>& vertices, screen* screen) {
-//	int V = vertices.size();
-//
-//	vector<ivec2> vertexPixels(V);
-//	for (int i = 0; i < V; ++i) {
-//		VertexShader(vertices[i], vertexPixels[i]);
-//	}
-//	vector<ivec2> leftPixels;
-//	vector<ivec2> rightPixels;
-//	ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
-//	DrawRows(screen, leftPixels, rightPixels);
-//}
 
 void DrawPolygon(const vector<vec4>& vertices, screen* screen) {
 	int V = vertices.size();
