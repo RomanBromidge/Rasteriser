@@ -19,9 +19,15 @@ SDL_Event event;
 #define SCREEN_HEIGHT 256
 #define FULLSCREEN_MODE false
 
+//Camera variables
 float focalLength = SCREEN_HEIGHT;
 vec4 cameraPos( 0, 0, -3.001,1 );
 mat4 cameraRotMatrix;
+
+//Light variables
+vec4 lightPos(0,-0.5,-0.7, 1);
+vec3 lightPower = 14.1f*vec3( 1, 1, 1 );
+vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
 
 vector<Triangle> triangles;
 vec3 currentColor;
@@ -40,6 +46,8 @@ mat3 RotMatrixY(float angle);
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels);
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
 void DrawPolygon(const vector<Vertex>& vertices, screen* screen);
+vec4 NormaliseVec(vec4 vec);
+double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 
 float **malloc2dArray(float dim1, float dim2)
 {
@@ -118,9 +126,20 @@ void Draw(screen* screen)
 
   for( uint32_t i=0; i<triangles.size(); ++i ) {
     vector<Vertex> vertices(3);
+		vec3 norm3 = triangles[i].normal;
+		vec4 norm = vec4(norm3, 1);
+		vec3 refl = vec3(1, 1, 1);
     vertices[0].position = triangles[i].v0;
+		vertices[0].normal = norm;
+		vertices[0].reflectance = refl;
+
     vertices[1].position = triangles[i].v1;
+		vertices[1].normal = norm;
+		vertices[1].reflectance = refl;
+
     vertices[2].position = triangles[i].v2;
+		vertices[2].normal = norm;
+		vertices[2].reflectance = refl;
 
 		currentColor = triangles[i].color;
 
@@ -208,12 +227,19 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 
 	float m = sqrt((stepX * stepX) + (stepY * stepY));
 	float lamdaStep = m / d;
+	vec3 aLum = a.illumination;
+	vec3 bLum = b.illumination;
+	vec3 illumination;
 
 	for (int i = 0; i < N; ++i) {
 		result[i].x = round(a.x + i * stepX);
 		result[i].y = round(a.y + i * stepY);
 		float lamda = i * lamdaStep;
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
+		illumination.x = (aLum.x*(1-lamda) + bLum.x*(lamda));
+		illumination.y = (aLum.y*(1-lamda) + bLum.y*(lamda));;
+		illumination.z = (aLum.z*(1-lamda) + bLum.z*(lamda));;
+		result[i].illumination = illumination;
 	}
 }
 
@@ -258,9 +284,25 @@ void VertexShader(const Vertex& v, Pixel& p) {
 
 	//Calculate z inverse before anything else:
 	p.zinv = 1 / n.z;
-
+	//Compute projected position
 	p.x = (int)((focalLength * (n.x / n.z)) + (SCREEN_WIDTH * 0.5));
 	p.y = (int)((focalLength * (n.y / n.z)) + (SCREEN_HEIGHT * 0.5));
+
+	//Compute illumination of vertex
+	vec4 norm = v.normal;
+	vec4 r = lightPos - v.position;
+	//norm = NormaliseVec(n);
+	//r = NormaliseVec(r);
+	double d = Find3Distance(lightPos, vec3(pos));
+	double dotProduct = (norm.x * r.x) + (norm.y * r.y) + (norm.z * r.z);
+	vec3 D (0,0,0);
+	if (dotProduct > 0) {
+		D.x = dotProduct * lightPower.x / (4 * M_PI * d * d);
+		D.y = dotProduct * lightPower.y / (4 * M_PI * d * d);
+		D.z = dotProduct * lightPower.z / (4 * M_PI * d * d);
+	}
+	p.illumination = v.reflectance * (D + indirectLightPowerPerArea);
+
 }
 
 void PixelShader( screen* screen, const Pixel& p ) {
@@ -268,7 +310,7 @@ void PixelShader( screen* screen, const Pixel& p ) {
 	int y = p.y;
 	if( p.zinv > depthBuffer[x][y] ) {
 		depthBuffer[x][y] = p.zinv;
-		PutPixelSDL( screen, x, y, currentColor );
+		PutPixelSDL( screen, x, y, currentColor*p.illumination );
 	}
 }
 
@@ -392,7 +434,7 @@ void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixe
 		ivec2 delta;
 		delta.x = glm::abs(leftPixels[i].x - rightPixels[i].x);
 		delta.y = glm::abs(leftPixels[i].y - rightPixels[i].y);
-		int pixels = glm::max(delta.x, delta.y) +1;
+		int pixels = glm::max(delta.x, delta.y) +1 ;
 
 		//int pixels = glm::abs(leftPixels[i].x - rightPixels[i].x);
 
@@ -421,4 +463,26 @@ void DrawPolygon(const vector<Vertex>& vertices, screen* screen) {
 	vector<Pixel> rightPixels;
 	ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
 	DrawRows(screen, leftPixels, rightPixels);
+}
+
+vec4 NormaliseVec(vec4 vec) {
+	vec4 normalisedPoint;
+	double length = sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+
+	normalisedPoint.x = vec.x / length;
+	normalisedPoint.y = vec.y / length;
+	normalisedPoint.z = vec.z / length;
+	normalisedPoint.w = vec.w;
+
+	return normalisedPoint;
+}
+
+double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
+
+	double sqrDifferenceX = (vectorOne.x - vectorTwo.x)*(vectorOne.x - vectorTwo.x);
+	double sqrDifferenceY = (vectorOne.y - vectorTwo.y)*(vectorOne.y - vectorTwo.y);
+	double sqrDifferenceZ = (vectorOne.z - vectorTwo.z)*(vectorOne.z - vectorTwo.z);
+	double root = sqrt(sqrDifferenceX + sqrDifferenceY + sqrDifferenceZ);
+
+	return root;
 }

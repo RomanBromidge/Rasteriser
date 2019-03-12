@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <stdint.h>
 
+using glm::vec3;
 using glm::vec4;
 
 typedef struct {
@@ -21,10 +22,13 @@ struct Pixel {
 	int x;
 	int y;
 	float zinv;
+  vec3 illumination;
 };
 
 struct Vertex {
   vec4 position;
+  vec4 normal;
+  vec3 reflectance;
 };
 
 screen* InitializeSDL( int width, int height, bool fullscreen = false );
