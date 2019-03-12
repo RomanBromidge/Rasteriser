@@ -26,7 +26,7 @@ mat4 cameraRotMatrix;
 
 //Light variables
 vec4 lightPos(0,-0.5,-0.7, 1);
-vec3 lightPower = 1.1f*vec3( 1, 1, 1 );
+vec3 lightPower = 14.1f*vec3( 1, 1, 1 );
 vec3 indirectLightPowerPerArea = 0.5f*vec3( 1, 1, 1 );
 
 vector<Triangle> triangles;
@@ -49,8 +49,7 @@ void DrawPolygon(const vector<Vertex>& vertices, screen* screen);
 vec4 NormaliseVec(vec4 vec);
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 
-float **malloc2dArray(float dim1, float dim2)
-{
+float **malloc2dArray(float dim1, float dim2) {
 	float i, j;
 
 	float **array = (float **)malloc(dim1 * sizeof(float *));
@@ -76,27 +75,6 @@ int main( int argc, char* argv[] ){
   LoadTestModel(triangles);
 
   depthBuffer = malloc2dArray(SCREEN_WIDTH, SCREEN_HEIGHT);
-  /*for (int i=0; i < SCREEN_HEIGHT; i++) {
-	  for (int j = 0; j < SCREEN_WIDTH; j++) {
-		  depthBuffer[i][j] = 0;
-	  }
-  }*/
-
- /* vector<ivec2> vertexPixels(3);
-  vertexPixels[0] = ivec2(10, 5);
-  vertexPixels[1] = ivec2(5, 10);
-  vertexPixels[2] = ivec2(15, 15);
-  vector<ivec2> leftPixels;
-  vector<ivec2> rightPixels;
-  ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
-  for (int row = 0; row<leftPixels.size(); ++row) {
-	  cout << "Start: ("
-		  << leftPixels[row].x << ","
-		  << leftPixels[row].y << "). "
-		  << "End: ("
-		  << rightPixels[row].x << ","
-		  << rightPixels[row].y << "). " << endl;
-  }*/
 
   while ( Update())
     {
@@ -218,10 +196,11 @@ bool Update(){
 //Interpolate a 2d vector between two 2d points
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	int N = result.size();
+	float size = (float)(fmax(N - 1, 1));
 
 	Pixel step;
-	float stepX = (b.x - a.x) / (float)(fmax(N - 1, 1));
-	float stepY = (b.y - a.y) / (float)(fmax(N - 1, 1));
+	float stepX = (b.x - a.x) / size;
+	float stepY = (b.y - a.y) / size;
 
 	float d = sqrt((a.x-b.x)*(a.x - b.x) + (a.y - b.y)*(a.y - b.y));
 
@@ -229,12 +208,16 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	float lamdaStep = m / d;
 
 	vec3 aLum = a.illumination;
+	//cout << "a x "<< aLum.x << endl;
 	vec3 bLum = b.illumination;
-	vec3 illumination;
+	//cout << "b x "<< bLum.x << endl;
+	vec3 illumination(0,0,0);
 
-	float stepXill = (aLum.x - bLum.x)/ (float)(fmax(N - 1, 1));
-	float stepYill = (aLum.y - bLum.y) / (float)(fmax(N - 1, 1));
-	float stepZill = (aLum.z - bLum.z) / (float)(fmax(N - 1, 1));
+	float stepXill = (aLum.x - bLum.x) / size;
+	//cout << "x step "<< stepXill << endl;
+	//cout << "length of vector "<< size << endl;
+	float stepYill = (aLum.y - bLum.y) / size;
+	float stepZill = (aLum.z - bLum.z) / size;
 
 
 	for (int i = 0; i < N; ++i) {
@@ -243,47 +226,12 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 		float lamda = i * lamdaStep;
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
 
-		illumination.x = (a.x + i * stepXill);
-		illumination.y = (a.y + i * stepYill);
-		illumination.z = (a.y + i * stepZill);
+		illumination.x = (aLum.x + i * stepXill);
+		illumination.y = (aLum.y + i * stepYill);
+		illumination.z = (aLum.z + i * stepZill);
 		result[i].illumination = illumination;
 	}
 }
-
-//Draw a line between 2 points on the screen
-//void DrawLineSDL( screen* screen, ivec2 a, ivec2 b, vec3 color ) {
-//
-//  //If a and b are the start and end of the line segment then compute the number of pixels to draw
-//  //Find the absolute difference
-//  ivec2 delta = glm::abs( a - b );
-//  int pixels = glm::max( delta.x, delta.y ) + 1;
-//
-//  //Get the pixel positions of the line by calling the Interpolation function
-//  //Create a vector of vectors
-//  vector<ivec2> line( pixels );
-//  Interpolate( a, b, line );
-//
-//  for( uint32_t i=0; i<line.size(); ++i ) {
-//    PutPixelSDL( screen, line[i].x, line[i].y, color );
-//  }
-//}
-
-//Draw the edges of each polygon in the scene
-//void DrawPolygonEdges( const vector<vec4>& vertices, screen* screen ) {
-//
-//  int V = vertices.size();
-//  // Transform each vertex from 3D world position to 2D image position:
-//  vector<ivec2> projectedVertices( V );
-//  for( int i=0; i<V; ++i ) {
-//    VertexShader( vertices[i], projectedVertices[i] );
-//  }
-//  // Loop over all vertices and draw the edge from it to the next vertex:
-//  for( int i=0; i<V; ++i ) {
-//    int j = (i+1)%V; // The next vertex
-//    vec3 color( 1, 1, 1 );
-//    DrawLineSDL( screen, projectedVertices[i], projectedVertices[j], color );
-//  }
-//}
 
 void VertexShader(const Vertex& v, Pixel& p) {
 	vec4 pos = v.position;
@@ -307,12 +255,10 @@ void VertexShader(const Vertex& v, Pixel& p) {
 		D.x = dotProduct * lightPower.x / (4 * M_PI * d * d);
 		D.y = dotProduct * lightPower.y / (4 * M_PI * d * d);
 		D.z = dotProduct * lightPower.z / (4 * M_PI * d * d);
-		cout << "positive" << 1 << endl;
 	}
 	else {
-		cout << "negative" << endl;
 	}
-	p.illumination = (D + indirectLightPowerPerArea);
+	p.illumination = v.reflectance * (D + indirectLightPowerPerArea);
 
 }
 
@@ -324,32 +270,6 @@ void PixelShader( screen* screen, const Pixel& p ) {
 		PutPixelSDL( screen, x, y, p.illumination );
 	}
 }
-
-//Transform the geometry depending on some translation and rotation vector
-//void TransformationMatrix(mat4 Transformation, vec3 angles, vec3 translation){
-//  float a = angles[0];
-//  float b = angles[1];
-//  float c = angles[2];
-//
-//  vec4 row1(cosf(b) * cosf(c), cosf(b)* sinf(c), -sinf(b), 0);
-//  vec4 row2((sinf(a) * sinf(b)* cosf(c)) - (cosf(a) * sinf(c)), (sinf(a) * sinf(b) * sinf(c)) + (cosf(a) * cosf(c)), sinf(a) * cosf(b), 0);
-//  vec4 row3((cosf(a) * sinf(b)* cosf(c)) + (sinf(a) * sinf(c)), (cosf(a) * sinf(b) * sinf(c)) - (sinf(a) * cosf(c)), cosf(a) * cosf(b), 0);
-//  vec4 row4(0,0,0,1);
-//
-//  mat4 Rotation(row1, row2, row3, row4);
-//
-//  vec4 zeros(0,0,0,0);
-//  mat4 Positive(zeros, zeros, zeros, row4);
-//  Positive[0][3] = translation[0];
-//  Positive[1][3] = translation[1];
-//  Positive[2][3] = translation[2];
-//  mat4 Negative(zeros, zeros, zeros, row4);
-//  Negative[0][3] = -translation[0];
-//  Negative[1][3] = -translation[1];
-//  Negative[2][3] = -translation[2];
-//
-//  Transformation = Positive * Rotation * Negative;
-//}
 
 mat3 RotMatrixX(float angle) {
 	vec3 x0(1, 0, 0);
@@ -421,6 +341,8 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 
 		vector<Pixel> result(pixels);
 		Interpolate(vertexPixels[i], vertexPixels[j], result);
+		//cout << "pre illum x "<< result[0].illumination.x << endl;
+
 		for (Pixel pixel : result) {
 			int loc = pixel.y - minYValue;
 			if (pixel.x < leftPixels[loc].x) {
@@ -428,12 +350,14 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 				leftPixels[loc].y = pixel.y;
 				leftPixels[loc].zinv = pixel.zinv;
 				leftPixels[loc].illumination = pixel.illumination;
+				//cout << "illum x "<< pixel.illumination.x << endl;
 			}
 			if (pixel.x > rightPixels[loc].x) {
 				rightPixels[loc].x = pixel.x;
 				rightPixels[loc].y = pixel.y;
 				rightPixels[loc].zinv = pixel.zinv;
 				rightPixels[loc].illumination = pixel.illumination;
+				//cout << "illum x "<< pixel.illumination.x << endl;
 			}
 		}
 	}
@@ -471,7 +395,9 @@ void DrawPolygon(const vector<Vertex>& vertices, screen* screen) {
 	vector<Pixel> vertexPixels(V);
 	for (int i = 0; i < V; ++i) {
 		VertexShader(vertices[i], vertexPixels[i]);
+		//cout << "x val " << vertexPixels[i].illumination.x << endl;
 	}
+
 	vector<Pixel> leftPixels;
 	vector<Pixel> rightPixels;
 	ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
