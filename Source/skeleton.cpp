@@ -24,7 +24,6 @@ vec4 cameraPos( 0, 0, -3.001,1 );
 mat4 cameraRotMatrix;
 
 vector<Triangle> triangles;
-
 vec3 currentColor;
 
 /* ----------------------------------------------------------------------------*/
@@ -33,6 +32,7 @@ vec3 currentColor;
 bool Update();
 void Draw(screen* screen);
 void VertexShader(const vec4& v, Pixel& p);
+void PixelShader( screen* screen, const Pixel& p );
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result);
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
@@ -122,10 +122,10 @@ void Draw(screen* screen)
     vertices[1] = triangles[i].v1;
     vertices[2] = triangles[i].v2;
 
-	currentColor = triangles[i].color;
+		currentColor = triangles[i].color;
 
     //DrawPolygonEdges(vertices, screen);
-	DrawPolygon(vertices, screen);
+		DrawPolygon(vertices, screen);
   }
 }
 
@@ -262,6 +262,15 @@ void VertexShader(const vec4& v, Pixel& p) {
 	p.y = (int)((focalLength * (n.y / n.z)) + (SCREEN_HEIGHT * 0.5));
 }
 
+void PixelShader( screen* screen, const Pixel& p ) {
+	int x = p.x;
+	int y = p.y;
+	if( p.zinv > depthBuffer[x][y] ) {
+		depthBuffer[x][y] = p.zinv;
+		PutPixelSDL( screen, x, y, currentColor );
+	}
+}
+
 //Transform the geometry depending on some translation and rotation vector
 //void TransformationMatrix(mat4 Transformation, vec3 angles, vec3 translation){
 //  float a = angles[0];
@@ -393,12 +402,8 @@ void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixe
 		for (Pixel pixel : results) {
 			//Check if pixel.x and pixel.y are in the screen
 			if (pixel.x < SCREEN_WIDTH && pixel.x >= 0 && pixel.y < SCREEN_HEIGHT && pixel.y >= 0) {
-				//Before drawing a new pixel check if it is in front of the one that is currently drawn there by comparing the value of the depthBuffer at that pixel
-				if (pixel.zinv > depthBuffer[pixel.x][pixel.y]) {
-					depthBuffer[pixel.x][pixel.y] = pixel.zinv;
-					PutPixelSDL(screen, pixel.x, pixel.y, currentColor);
-				}
-				//PutPixelSDL(screen, pixel.x, pixel.y, currentColor);
+				//Draw pixel based on zinv
+				PixelShader(screen, pixel);
 			}
 		}
 	}
