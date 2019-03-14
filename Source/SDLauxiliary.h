@@ -22,13 +22,11 @@ struct Pixel {
 	int x;
 	int y;
 	float zinv;
-  vec3 illumination;
+	vec4 pos3d;
 };
 
 struct Vertex {
-  vec4 position;
-  vec4 normal;
-  vec3 reflectance;
+	vec4 position;
 };
 
 screen* InitializeSDL( int width, int height, bool fullscreen = false );
