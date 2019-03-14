@@ -21,7 +21,9 @@ SDL_Event event;
 
 float focalLength = SCREEN_HEIGHT;
 vec4 cameraPos( 0, 0, -3.001,1 );
-mat4 cameraRotMatrix;
+mat4 transformMatrix;
+float angleStep = 0.01f;
+float transStep = 0.2f;
 
 vec4 lightPos(0, -0.5, -0.7, 1);
 vec3 lightPower = 14.1f*vec3(1, 1, 1);
@@ -30,7 +32,6 @@ vec3 indirectLightPowerPerArea = 0.5f*vec3(1, 1, 1);
 vector<Triangle> triangles;
 
 vec3 currentColor;
-
 vec4 currentNormal;
 vec3 currentReflectance;
 
@@ -41,9 +42,11 @@ bool Update();
 void Draw(screen* screen);
 void VertexShader(const vec4& v, Pixel& p);
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result);
-void Rotate(mat3 rotation);
-mat3 RotMatrixX(float angle);
-mat3 RotMatrixY(float angle);
+void TransformationMatrix(mat4 r, vec3 t);
+mat4 RotMatrixX(float angle);
+mat4 RotMatrixY(float angle);
+mat4 RotMatrixZ(float angle);
+mat4 Ident();
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels);
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
 void PixelShader(screen* screen, const Pixel& p);
@@ -80,6 +83,8 @@ int main( int argc, char* argv[] ){
   LoadTestModel(triangles);
 
   depthBuffer = malloc2dArray(SCREEN_WIDTH, SCREEN_HEIGHT);
+	transformMatrix = Ident();
+	TransformationMatrix(Ident(), vec3(-cameraPos));
 
   while ( Update())
     {
@@ -131,9 +136,6 @@ bool Update(){
 	float dt = float(t2-t);
 	t = t2;
 
-	float angle = 0.01f;
-	float step = 0.2f;
-
 	SDL_Event e;
 	while(SDL_PollEvent(&e)){
 		if (e.type == SDL_QUIT){
@@ -147,51 +149,51 @@ bool Update(){
 					//Camera Movement
 					case SDLK_UP:
 						/* Move camera forward */
-						cameraPos.z += step;
+						TransformationMatrix(Ident(), vec3(0, 0, -transStep));
 						break;
 					case SDLK_DOWN:
 						/* Move camera backwards */
-						cameraPos.z -= step;
+						TransformationMatrix(Ident(), vec3(0, 0, transStep));
 						break;
 					case SDLK_LEFT:
 						/* Move camera left */
-						cameraPos.x -= step;
+						TransformationMatrix(Ident(), vec3(transStep, 0, 0));
 						break;
 					case SDLK_RIGHT:
 						/* Move camera right */
-						cameraPos.x += step;
+						TransformationMatrix(Ident(), vec3(-transStep, 0, 0));
 						break;
 
 					//Camera Rotation
 					case SDLK_k:
 						/*Rotate camera downwards on X axis */
-						Rotate(RotMatrixX(-angle));
+						TransformationMatrix(RotMatrixX(-angleStep), vec3(0, 0, 0));
 						break;
 					case SDLK_i:
 						/*Rotate camera upwards on X axis */
-						Rotate(RotMatrixX(angle));
+						TransformationMatrix(RotMatrixX(angleStep), vec3(0, 0, 0));
 						break;
 					case SDLK_l:
 						/*Rotate camera left on Y axis */
-						Rotate(RotMatrixY(angle));
+						TransformationMatrix(RotMatrixY(angleStep), vec3(0, 0, 0));
 						break;
 					case SDLK_j:
 						/*Rotate camera right on Y axis */
-						Rotate(RotMatrixY(-angle));
+						TransformationMatrix(RotMatrixY(-angleStep), vec3(0, 0, 0));
 						break;
 
 						//Light Rotation
 					case SDLK_d:
-						lightPos.x += step;
+						lightPos.x += transStep;
 						break;
 					case SDLK_a:
-						lightPos.x -= step;
+						lightPos.x -= transStep;
 						break;
 					case SDLK_s:
-						lightPos.y += step;
+						lightPos.y += transStep;
 						break;
 					case SDLK_w:
-						lightPos.y -= step;
+						lightPos.y -= transStep;
 						break;
 
 					case SDLK_ESCAPE:
@@ -201,6 +203,41 @@ bool Update(){
 			}
     }
   return true;
+}
+
+//Return 4x4 identity matrix
+mat4 Ident() {
+	return mat4(1.0f);
+}
+mat4 RotMatrixX(float angle) {
+	vec4 c0(1, 0, 0, 0);
+	vec4 c1(0, cosf(angle), sinf(angle), 0);
+	vec4 c2(0, -sinf(angle), cosf(angle), 0);
+	vec4 c3(0, 0, 0, 1);
+	return mat4(c0, c1, c2, c3);
+}
+mat4 RotMatrixY(float angle) {
+	vec4 c1(cosf(angle), 0, -sinf(angle), 0);
+	vec4 c2(0, 1, 0, 0);
+	vec4 c3(sinf(angle), 0, cosf(angle), 0);
+	vec4 c4(0, 0, 0, 1);
+	return mat4(c1, c2, c3, c4);
+}
+mat4 RotMatrixZ(float angle) {
+	vec4 c1(cosf(angle), sinf(angle), 0, 0);
+	vec4 c2(-sinf(angle), cosf(angle), 0, 0);
+	vec4 c3(0, 0, 1, 0);
+	vec4 c4(0, 0, 0, 1);
+	return mat4(c1, c2, c3, c4);
+}
+
+//Transform geometry by some amount
+void TransformationMatrix(mat4 r, vec3 t) {
+	vec4 cT = transformMatrix[3];
+	mat4 newTrans = r * transformMatrix;
+	vec4 c3(cT.x + t.x, cT.y + t.y, cT.z + t.z, 1);
+	newTrans[3] = c3;
+	transformMatrix = newTrans ;
 }
 
 void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
@@ -222,13 +259,14 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 
 		float lamda = i * lamdaStep;
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
-		
+
 		result[i].pos3d = vec4(((vec3)a.pos3d*a.zinv + (float)i * step3d),1) / result[i].zinv;
 	}
 }
 
 void VertexShader(const vec4& v, Pixel& p) {
-	vec4 n = v - cameraPos;
+	//vec4 n = v - cameraPos;
+	vec4 n = transformMatrix * v;
 
 	//Calculate z inverse before anything else:
 	p.zinv = 1 / n.z;
@@ -238,27 +276,6 @@ void VertexShader(const vec4& v, Pixel& p) {
 
 	vec4 pixelPos(v.x, v.y, v.z, 1);
 	p.pos3d = pixelPos;
-}
-
-mat3 RotMatrixX(float angle) {
-	vec3 x0(1, 0, 0);
-	vec3 x1(0, cosf(angle), sinf(angle));
-	vec3 x2(0, -sinf(angle), cosf(angle));
-
-	return mat3(x0, x1, x2);
-}
-
-mat3 RotMatrixY(float angle) {
-	vec3 y1(cosf(angle), 0, -sinf(angle));
-	vec3 y2(0, 1, 0);
-	vec3 y3(sinf(angle), 0, cosf(angle));
-
-	return mat3(y1, y2, y3);
-}
-
-void Rotate(mat3 rotation) {
-	vec3 loc = cameraPos * rotation;
-	cameraPos = vec4(loc, 1);
 }
 
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels) {
