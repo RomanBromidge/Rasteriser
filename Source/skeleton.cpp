@@ -47,6 +47,7 @@ mat3 RotMatrixY(float angle);
 void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPixels, vector<Pixel>& rightPixels);
 void DrawRows(screen* screen, const vector<Pixel>& leftPixels, const vector<Pixel>& rightPixels);
 void PixelShader(screen* screen, const Pixel& p);
+vec3 calculateIllumination(const Pixel& p);
 void DrawPolygon(const vector<vec4>& vertices, screen* screen);
 vec4 NormaliseVec(vec4 vec);
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
@@ -234,7 +235,10 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	float m = sqrt((stepX * stepX) + (stepY * stepY));
 	float lamdaStep = m / d;
 
-	vec3 step3d = (b.pos3d - a.pos3d) / (float)(fmax(N - 1, 1));
+	//vec3 c0 = calculateIllumination(a) * a.color;
+	//vec3 c1 = calculateIllumination(b) * b.color;
+
+	vec3 step3d = (b.pos3d*b.zinv - a.pos3d*a.zinv) / (float)(fmax(N - 1, 1));
 
 	for (int i = 0; i < N; ++i) {
 		result[i].x = round(a.x + i * stepX);
@@ -243,7 +247,9 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 		float lamda = i * lamdaStep;
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
 		
-		result[i].pos3d = vec4(((vec3)a.pos3d + (float)i * step3d),1);
+		result[i].pos3d = vec4(((vec3)a.pos3d*a.zinv + (float)i * step3d),1) / result[i].zinv;
+
+		//result[i].color = (1 / result[i].zinv) * ((c0*a.zinv)*(1-lamda) + (c1*b.zinv)*lamda);
 	}
 }
 
@@ -258,6 +264,8 @@ void VertexShader(const vec4& v, Pixel& p) {
 
 	vec4 pixelPos(v.x, v.y, v.z, 1);
 	p.pos3d = pixelPos;
+
+	p.color = currentColor;
 }
 
 mat3 RotMatrixX(float angle) {
@@ -337,12 +345,14 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 				leftPixels[loc].y = pixel.y;
 				leftPixels[loc].zinv = pixel.zinv;
 				leftPixels[loc].pos3d = pixel.pos3d;
+				//leftPixels[loc].color = pixel.color;
 			}
 			if (pixel.x > rightPixels[loc].x) {
 				rightPixels[loc].x = pixel.x;
 				rightPixels[loc].y = pixel.y;
 				rightPixels[loc].zinv = pixel.zinv;
 				rightPixels[loc].pos3d = pixel.pos3d;
+				//rightPixels[loc].color = pixel.color;
 			}
 		}
 	}
@@ -372,6 +382,16 @@ void PixelShader(screen* screen, const Pixel& p) {
 	int x = p.x;
 	int y = p.y;
 
+	vec3 illumination = calculateIllumination(p);
+
+	//Before drawing a new pixel check if it is in front of the one that is currently drawn there by comparing the value of the depthBuffer at that pixel
+	if (p.zinv > depthBuffer[p.x][p.y]) {
+		depthBuffer[p.x][p.y] = p.zinv;
+		PutPixelSDL(screen, x, y, currentColor * illumination);
+	}
+}
+
+vec3 calculateIllumination(const Pixel& p) {
 	//Compute illumination of vertex
 	vec4 norm = currentNormal;
 	vec4 r = lightPos - p.pos3d;
@@ -385,14 +405,7 @@ void PixelShader(screen* screen, const Pixel& p) {
 		D.y = dotProduct * lightPower.y / (4 * M_PI * d * d);
 		D.z = dotProduct * lightPower.z / (4 * M_PI * d * d);
 	}
-
-	vec3 illumination = D + indirectLightPowerPerArea;
-
-	//Before drawing a new pixel check if it is in front of the one that is currently drawn there by comparing the value of the depthBuffer at that pixel
-	if (p.zinv > depthBuffer[p.x][p.y]) {
-		depthBuffer[p.x][p.y] = p.zinv;
-		PutPixelSDL(screen, x, y, currentColor * illumination);
-	}
+	return  (D + indirectLightPowerPerArea);
 }
 
 void DrawPolygon(const vector<vec4>& vertices, screen* screen) {
