@@ -80,27 +80,6 @@ int main( int argc, char* argv[] ){
   LoadTestModel(triangles);
 
   depthBuffer = malloc2dArray(SCREEN_WIDTH, SCREEN_HEIGHT);
-  /*for (int i=0; i < SCREEN_HEIGHT; i++) {
-	  for (int j = 0; j < SCREEN_WIDTH; j++) {
-		  depthBuffer[i][j] = 0;
-	  }
-  }*/
-  
- /* vector<ivec2> vertexPixels(3);
-  vertexPixels[0] = ivec2(10, 5);
-  vertexPixels[1] = ivec2(5, 10);
-  vertexPixels[2] = ivec2(15, 15);
-  vector<ivec2> leftPixels;
-  vector<ivec2> rightPixels;
-  ComputePolygonRows(vertexPixels, leftPixels, rightPixels);
-  for (int row = 0; row<leftPixels.size(); ++row) {
-	  cout << "Start: ("
-		  << leftPixels[row].x << ","
-		  << leftPixels[row].y << "). "
-		  << "End: ("
-		  << rightPixels[row].x << ","
-		  << rightPixels[row].y << "). " << endl;
-  }*/
 
   while ( Update())
     {
@@ -208,10 +187,10 @@ bool Update(){
 					case SDLK_a:
 						lightPos.x -= step;
 						break;
-					case SDLK_w:
+					case SDLK_s:
 						lightPos.y += step;
 						break;
-					case SDLK_s:
+					case SDLK_w:
 						lightPos.y -= step;
 						break;
 
@@ -235,9 +214,6 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 	float m = sqrt((stepX * stepX) + (stepY * stepY));
 	float lamdaStep = m / d;
 
-	//vec3 c0 = calculateIllumination(a) * a.color;
-	//vec3 c1 = calculateIllumination(b) * b.color;
-
 	vec3 step3d = (b.pos3d*b.zinv - a.pos3d*a.zinv) / (float)(fmax(N - 1, 1));
 
 	for (int i = 0; i < N; ++i) {
@@ -248,8 +224,6 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 		result[i].zinv = (a.zinv*(1-lamda) + b.zinv*(lamda));
 		
 		result[i].pos3d = vec4(((vec3)a.pos3d*a.zinv + (float)i * step3d),1) / result[i].zinv;
-
-		//result[i].color = (1 / result[i].zinv) * ((c0*a.zinv)*(1-lamda) + (c1*b.zinv)*lamda);
 	}
 }
 
@@ -264,8 +238,6 @@ void VertexShader(const vec4& v, Pixel& p) {
 
 	vec4 pixelPos(v.x, v.y, v.z, 1);
 	p.pos3d = pixelPos;
-
-	p.color = currentColor;
 }
 
 mat3 RotMatrixX(float angle) {
@@ -345,14 +317,12 @@ void ComputePolygonRows(const vector<Pixel>& vertexPixels, vector<Pixel>& leftPi
 				leftPixels[loc].y = pixel.y;
 				leftPixels[loc].zinv = pixel.zinv;
 				leftPixels[loc].pos3d = pixel.pos3d;
-				//leftPixels[loc].color = pixel.color;
 			}
 			if (pixel.x > rightPixels[loc].x) {
 				rightPixels[loc].x = pixel.x;
 				rightPixels[loc].y = pixel.y;
 				rightPixels[loc].zinv = pixel.zinv;
 				rightPixels[loc].pos3d = pixel.pos3d;
-				//rightPixels[loc].color = pixel.color;
 			}
 		}
 	}
