@@ -20,7 +20,7 @@ SDL_Event event;
 #define FULLSCREEN_MODE false
 
 float focalLength = SCREEN_HEIGHT;
-vec4 cameraPos( 0, 0, -3.001,1 );
+vec3 initialSetup( 0, 0, 3 );
 mat4 transformMatrix;
 float angleStep = 0.01f;
 float transStep = 0.2f;
@@ -84,7 +84,7 @@ int main( int argc, char* argv[] ){
 
   depthBuffer = malloc2dArray(SCREEN_WIDTH, SCREEN_HEIGHT);
 	transformMatrix = Ident();
-	TransformationMatrix(Ident(), vec3(-cameraPos));
+	TransformationMatrix(Ident(), initialSetup);
 
   while ( Update())
     {
@@ -105,7 +105,6 @@ void Draw(screen* screen)
   memset(screen->buffer, 0, screen->height*screen->width*sizeof(uint32_t));
 
   /* Clear depth buffer */
-  //memset(depthBuffer, 0, sizeof(uint32_t)*SCREEN_WIDTH*SCREEN_HEIGHT);
   for (int i = 0; i < SCREEN_WIDTH; i++) {
 	  for (int j = 0; j < SCREEN_HEIGHT; j++) {
 		  depthBuffer[i][j] = 0;
@@ -233,8 +232,8 @@ mat4 RotMatrixZ(float angle) {
 
 //Transform geometry by some amount
 void TransformationMatrix(mat4 r, vec3 t) {
-	vec4 cT = transformMatrix[3];
 	mat4 newTrans = r * transformMatrix;
+	vec4 cT = transformMatrix[3];
 	vec4 c3(cT.x + t.x, cT.y + t.y, cT.z + t.z, 1);
 	newTrans[3] = c3;
 	transformMatrix = newTrans ;
@@ -265,7 +264,6 @@ void Interpolate(Pixel a, Pixel b, vector<Pixel>& result) {
 }
 
 void VertexShader(const vec4& v, Pixel& p) {
-	//vec4 n = v - cameraPos;
 	vec4 n = transformMatrix * v;
 
 	//Calculate z inverse before anything else:
